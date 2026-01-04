@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
-      .select()
+      .select("id,userId,amount,category,note,occurredAt,createdAt,updatedAt")
       .single();
 
     if (error) throw error;
