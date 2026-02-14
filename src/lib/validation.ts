@@ -16,6 +16,8 @@ export const expenseSchema = z.object({
   ]),
   note: z.string().optional(),
   occurredAt: z.date().optional(),
+  recurring: z.boolean().optional(),
+  interval: z.enum(["WEEKLY", "BI_WEEKLY", "MONTHLY"]).optional(),
 });
 
 export const incomeSchema = z.object({
@@ -23,6 +25,8 @@ export const incomeSchema = z.object({
   source: z.enum(["SALARY", "INVESTMENT", "OTHER"]),
   note: z.string().optional(),
   occurredAt: z.date().optional(),
+  recurring: z.boolean().optional(),
+  interval: z.enum(["WEEKLY", "BI_WEEKLY", "MONTHLY"]).optional(),
 });
 
 export type ExpenseInput = z.infer<typeof expenseSchema>;

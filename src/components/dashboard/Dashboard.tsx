@@ -17,16 +17,14 @@ import {
 import {
   Activity,
   Bell,
-  CalendarClock,
   ChartLine,
-  ChevronLeft,
   Download,
   Layers,
   LayoutDashboard,
+  List,
   LogOut,
-  Menu,
+  Plus,
   PiggyBank,
-  Settings,
   User,
   Wallet,
 } from "lucide-react";
@@ -39,14 +37,13 @@ import { expenseSchema, incomeSchema } from "@/lib/validation";
 import type { ExpenseInput, IncomeInput } from "@/lib/validation";
 import { format } from "date-fns";
 
-type View = "dashboard" | "expense" | "income" | "coaching" | "settings" | "profile";
+type View = "dashboard" | "budget" | "expenses" | "expense" | "income" | "profile";
 
 interface DashboardProps {
   user: { id: string; email?: string | null };
   initialExpenses: Expense[];
   initialIncomes: Income[];
   profile: UserProfile | null;
-  calendlyUrl: string;
 }
 
 const expenseCategories: { label: string; value: ExpenseCategory }[] = [
@@ -68,27 +65,30 @@ const incomeSources: { label: string; value: IncomeSource }[] = [
   { label: "Other", value: "OTHER" },
 ];
 
-export function Dashboard({ user, initialExpenses, initialIncomes, profile, calendlyUrl }: DashboardProps) {
+export function Dashboard({ user, initialExpenses, initialIncomes, profile }: DashboardProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses ?? []);
   const [incomes, setIncomes] = useState<Income[]>(initialIncomes ?? []);
-  const [showSidebar, setShowSidebar] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [settingsState, setSettingsState] = useState<UserProfile>(
     profile ?? { displayName: "", avatarUrl: "", currency: "USD" },
   );
   const [online, setOnline] = useState(true);
+  const displayName = settingsState.displayName?.trim() || profile?.displayName || user.email || "Account";
 
   const expenseForm = useForm<ExpenseInput>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: { category: "GROCERIES", amount: 0, note: "", occurredAt: new Date() },
+    defaultValues: { category: "GROCERIES", amount: 0, note: "", occurredAt: undefined, recurring: false, interval: "MONTHLY" },
   });
 
   const incomeForm = useForm<IncomeInput>({
     resolver: zodResolver(incomeSchema),
-    defaultValues: { source: "SALARY", amount: 0, note: "", occurredAt: new Date() },
+    defaultValues: { source: "SALARY", amount: 0, note: "", occurredAt: undefined, recurring: false, interval: "MONTHLY" },
   });
+
+  const expenseRecurring = expenseForm.watch("recurring");
+  const incomeRecurring = incomeForm.watch("recurring");
 
   useEffect(() => {
     flushOfflineQueue();
@@ -140,7 +140,7 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
     const payload = {
       ...values,
       amount: Number(values.amount),
-      occurredAt: values.occurredAt ?? new Date(),
+      occurredAt: values.recurring ? undefined : values.occurredAt ?? undefined,
     };
     try {
       const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
@@ -158,6 +158,7 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
       }
       expenseForm.reset();
       await refreshDashboard();
+      setActiveView("expenses");
     } catch (error) {
       console.error(error);
       setStatus("Could not save expense");
@@ -168,7 +169,7 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
     const payload = {
       ...values,
       amount: Number(values.amount),
-      occurredAt: values.occurredAt ?? new Date(),
+      occurredAt: values.recurring ? undefined : values.occurredAt ?? undefined,
     };
     try {
       const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
@@ -186,6 +187,7 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
       }
       incomeForm.reset();
       await refreshDashboard();
+      setActiveView("budget");
     } catch (error) {
       console.error(error);
       setStatus("Could not save income");
@@ -234,19 +236,24 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
 
   const sidebarItems: { key: View; label: string; icon: React.ReactNode }[] = [
     { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { key: "budget", label: "Budget", icon: <Wallet className="w-4 h-4" /> },
+    { key: "expenses", label: "Expenses", icon: <List className="w-4 h-4" /> },
+    { key: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
     { key: "expense", label: "Add expense", icon: <Wallet className="w-4 h-4" /> },
     { key: "income", label: "Add income", icon: <PiggyBank className="w-4 h-4" /> },
-    { key: "coaching", label: "Coaching", icon: <CalendarClock className="w-4 h-4" /> },
-    { key: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
-    { key: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
+  ];
+
+  const mobileNavItems: { key: View; label: string; icon: React.ReactNode }[] = [
+    { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+    { key: "budget", label: "Budget", icon: <Wallet className="w-5 h-5" /> },
+    { key: "expenses", label: "Expenses", icon: <List className="w-5 h-5" /> },
+    { key: "profile", label: "Profile", icon: <User className="w-5 h-5" /> },
   ];
 
   return (
     <div className="min-h-screen flex bg-slate-950">
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-slate-900/70 border-r border-slate-800 px-4 py-5 transition-transform duration-200 lg:translate-x-0 lg:static lg:block ${
-          showSidebar ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className="hidden lg:block lg:static lg:w-64 bg-slate-900/70 border-r border-slate-800 px-4 py-5"
       >
         <div className="flex items-center gap-2 mb-6">
           <Image src="/logo.svg" alt="F.R.E.E Financial Program" className="h-9 w-9" width={36} height={36} />
@@ -261,7 +268,6 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
               key={item.key}
               onClick={() => {
                 setActiveView(item.key);
-                setShowSidebar(false);
               }}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
                 activeView === item.key ? "bg-sky-500/20 text-sky-200" : "hover:bg-slate-800"
@@ -281,19 +287,12 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
         </nav>
       </aside>
 
-      <main className="flex-1 min-h-screen lg:ml-0">
+      <main className="flex-1 min-h-screen pb-24 lg:pb-0">
         <header className="sticky top-0 z-20 flex items-center justify-between bg-slate-950/70 backdrop-blur px-4 py-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <button
-              className="lg:hidden rounded-full p-2 bg-slate-900 border border-slate-800"
-              onClick={() => setShowSidebar((s) => !s)}
-              aria-label="Toggle menu"
-            >
-              {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
             <div>
               <p className="text-xs text-slate-400">Signed in as</p>
-              <p className="font-semibold">{profile?.displayName || user.email || "Account"}</p>
+              <p className="font-semibold">{displayName}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -317,6 +316,10 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
 
           {activeView === "dashboard" && (
             <div className="flex flex-col gap-6">
+              <div className="glass-card p-5">
+                <p className="text-sm text-slate-400">Welcome</p>
+                <h2 className="text-2xl font-semibold">{displayName}</h2>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard icon={<LayoutDashboard className="w-4 h-4" />} label="Income" value={summary.totalIncome} tone="success" />
                 <StatCard icon={<Wallet className="w-4 h-4" />} label="Expense" value={summary.totalExpense} tone="warning" />
@@ -354,19 +357,18 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
 
                 <div className="glass-card p-4 flex flex-col gap-3">
                   <h3 className="font-semibold flex items-center gap-2">
-                    <CalendarClock className="w-4 h-4" /> Upcoming coaching
+                    <Layers className="w-4 h-4" /> Insights
                   </h3>
-                  <p className="text-sm text-slate-400">Book a budgeting coach to refine your spending plan.</p>
-                  <a
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-emerald-500 text-slate-900 font-semibold h-11"
-                    href={calendlyUrl || "https://calendly.com/"}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <CalendarClock className="w-4 h-4" /> Book via Calendly
-                  </a>
-                  <div className="text-xs text-slate-400">
-                    Need a custom session? Add notes when scheduling. We’ll sync events when you’re online.
+                  <p className="text-sm text-slate-400">Keep your income and expenses updated to see trends here.</p>
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+                    <div className="flex items-center gap-2 font-semibold mb-2">
+                      <Activity className="w-4 h-4 text-emerald-400" /> Quick stats
+                    </div>
+                    <ul className="list-disc ml-5 space-y-1 text-slate-300">
+                      <li>Recent balance: {summary.balance.toFixed(2)}</li>
+                      <li>Top expense category: {expenses[0]?.category ?? "N/A"}</li>
+                      <li>Income events tracked: {incomes.length}</li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -394,6 +396,56 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
                   </ResponsiveContainer>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeView === "budget" && (
+            <div className="flex flex-col gap-4">
+              <div className="glass-card p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Budget</p>
+                  <h2 className="text-2xl font-semibold">Track and add income</h2>
+                  <p className="text-sm text-slate-400">Quickly log income to keep your budget current.</p>
+                </div>
+                <button
+                  onClick={() => setActiveView("income")}
+                  className="flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-sky-400 text-slate-950 px-4 py-2 text-sm font-semibold"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add income
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <StatCard icon={<LayoutDashboard className="w-4 h-4" />} label="Income" value={summary.totalIncome} tone="success" />
+              </div>
+
+              <HistoryCard title="Recent income" items={incomes.slice(0, 6)} type="income" />
+            </div>
+          )}
+
+          {activeView === "expenses" && (
+            <div className="flex flex-col gap-4">
+              <div className="glass-card p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Expenses</p>
+                  <h2 className="text-2xl font-semibold">All expense transactions</h2>
+                  <p className="text-sm text-slate-400">Every expense logged in your budget.</p>
+                </div>
+                <button
+                  onClick={() => setActiveView("expense")}
+                  className="flex items-center gap-2 rounded-full bg-slate-900/70 border border-slate-800 px-4 py-2 text-sm font-semibold"
+                >
+                  <Wallet className="w-4 h-4" />
+                  Add expense
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <StatCard icon={<Wallet className="w-4 h-4" />} label="Total expenses" value={summary.totalExpense} tone="warning" />
+              </div>
+
+              <HistoryCard title="All expenses" items={expenses} type="expense" />
             </div>
           )}
 
@@ -426,16 +478,38 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-2 text-sm">
-                  <span>Date</span>
+                <label className="flex items-center gap-2 text-sm">
                   <input
-                    type="date"
-                    {...expenseForm.register("occurredAt", {
-                      setValueAs: (value) => (value ? new Date(value) : new Date()),
-                    })}
-                    className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    type="checkbox"
+                    {...expenseForm.register("recurring")}
+                    className="h-4 w-4 rounded border border-slate-700 bg-slate-900"
                   />
+                  <span>Recurring</span>
                 </label>
+                {expenseRecurring ? (
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span>Interval</span>
+                    <select
+                      {...expenseForm.register("interval")}
+                      className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    >
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="BI_WEEKLY">Bi-weekly</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </select>
+                  </label>
+                ) : (
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span>Date (optional)</span>
+                    <input
+                      type="date"
+                      {...expenseForm.register("occurredAt", {
+                        setValueAs: (value) => (value ? new Date(value) : undefined),
+                      })}
+                      className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    />
+                  </label>
+                )}
                 <label className="flex flex-col gap-2 text-sm">
                   <span>Note</span>
                   <input
@@ -484,16 +558,38 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-2 text-sm">
-                  <span>Date</span>
+                <label className="flex items-center gap-2 text-sm">
                   <input
-                    type="date"
-                    {...incomeForm.register("occurredAt", {
-                      setValueAs: (value) => (value ? new Date(value) : new Date()),
-                    })}
-                    className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    type="checkbox"
+                    {...incomeForm.register("recurring")}
+                    className="h-4 w-4 rounded border border-slate-700 bg-slate-900"
                   />
+                  <span>Recurring</span>
                 </label>
+                {incomeRecurring ? (
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span>Interval</span>
+                    <select
+                      {...incomeForm.register("interval")}
+                      className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    >
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="BI_WEEKLY">Bi-weekly</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </select>
+                  </label>
+                ) : (
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span>Date (optional)</span>
+                    <input
+                      type="date"
+                      {...incomeForm.register("occurredAt", {
+                        setValueAs: (value) => (value ? new Date(value) : undefined),
+                      })}
+                      className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    />
+                  </label>
+                )}
                 <label className="flex flex-col gap-2 text-sm">
                   <span>Note</span>
                   <input
@@ -513,45 +609,11 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
             </FormCard>
           )}
 
-          {activeView === "coaching" && (
-            <div className="glass-card p-6 flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <CalendarClock className="w-5 h-5" />
-                <div>
-                  <p className="text-sm text-slate-400">Coaching</p>
-                  <h2 className="text-xl font-semibold">Schedule a budgeting session</h2>
-                </div>
-              </div>
-              <p className="text-sm text-slate-300">
-                Pick a time in Calendly. We’ll attach your latest spending summary to help the coach prepare.
-                If you’re offline, add notes here and we’ll sync when you reconnect.
-              </p>
-              <a
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-100 text-slate-900 font-semibold h-11 px-4"
-                href={calendlyUrl || "https://calendly.com/"}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <CalendarClock className="w-4 h-4" /> Go to Calendly
-              </a>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm">
-                <div className="flex items-center gap-2 font-semibold mb-2">
-                  <Activity className="w-4 h-4 text-emerald-400" /> Quick prep
-                </div>
-                <ul className="list-disc ml-5 space-y-1 text-slate-300">
-                  <li>Recent balance: {summary.balance.toFixed(2)}</li>
-                  <li>Top expense category: {expenses[0]?.category ?? "N/A"}</li>
-                  <li>Income events tracked: {incomes.length}</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {activeView === "settings" && (
+          {activeView === "profile" && (
             <div className="glass-card p-6 flex flex-col gap-4 max-w-2xl">
               <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                <h2 className="text-xl font-semibold">Settings</h2>
+                <User className="w-5 h-5" />
+                <h2 className="text-xl font-semibold">Profile</h2>
               </div>
               <label className="flex flex-col gap-2 text-sm">
                 <span>Display name</span>
@@ -571,31 +633,45 @@ export function Dashboard({ user, initialExpenses, initialIncomes, profile, cale
                   className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
                 />
               </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <ProfileField label="Email" value={user.email ?? "-"} />
+                <ProfileField label="Currency" value={profile?.currency ?? "USD"} />
+                <ProfileField label="User ID" value={user.id} copyable />
+              </div>
               <button
                 onClick={saveProfile}
                 className="h-11 w-full sm:w-auto rounded-xl bg-gradient-to-r from-sky-500 to-emerald-500 text-slate-950 font-semibold px-5"
               >
-                Save settings
+                Save profile
               </button>
-            </div>
-          )}
-
-          {activeView === "profile" && (
-            <div className="glass-card p-6 flex flex-col gap-4 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                <h2 className="text-xl font-semibold">Profile</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <ProfileField label="Email" value={user.email ?? "-"} />
-                <ProfileField label="Display name" value={profile?.displayName ?? "Not set"} />
-                <ProfileField label="Currency" value={profile?.currency ?? "USD"} />
-                <ProfileField label="User ID" value={user.id} copyable />
-              </div>
             </div>
           )}
         </section>
       </main>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-800 bg-slate-950/90 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-4">
+          {mobileNavItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setActiveView(item.key)}
+              className={`flex flex-col items-center justify-center gap-1 py-3 text-xs font-medium transition-colors ${
+                activeView === item.key ? "text-sky-200" : "text-slate-400"
+              }`}
+              aria-label={item.label}
+            >
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
+                  activeView === item.key ? "bg-sky-500/20" : "bg-slate-900/70"
+                }`}
+              >
+                {item.icon}
+              </span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

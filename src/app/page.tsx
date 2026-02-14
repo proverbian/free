@@ -36,15 +36,12 @@ export default async function Home() {
 
   const { expenses, incomes } = await getDashboardData(session.user.id);
   const profile = await getProfile(session.user.id);
-  const calendlyUrl = process.env.CALENDLY_URL || "https://calendly.com";
-
   return (
     <Dashboard
       user={{ id: session.user.id, email: session.user.email }}
       initialExpenses={expenses}
       initialIncomes={incomes}
       profile={profile}
-      calendlyUrl={calendlyUrl}
     />
   );
 }

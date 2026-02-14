@@ -1,11 +1,11 @@
 ## FlowBudget
 
-Mobile-first budgeting app built with Next.js App Router, Tailwind v4, Supabase authentication, and Prisma against your Supabase Postgres. The app supports offline data entry with a service worker and syncs queued actions when you reconnect.
+Mobile-first budgeting app built with Next.js App Router, Tailwind v4, and Supabase authentication. The app supports offline data entry with a service worker and syncs queued actions when you reconnect.
 
 ### Features
 
 - Supabase email/password auth (client + server helpers)
-- Income & expense capture with Prisma models
+- Income & expense capture
 - Dashboard with charts (Recharts), summaries, and CSV export
 - Offline-friendly: service worker caching + IndexedDB queue with automatic flush on reconnect
 - Left-hand collapsible menu for mobile
@@ -34,15 +34,6 @@ CALENDLY_URL="https://calendly.com/your-schedule"
 
 Be sure the Supabase keys match your project; the service-role key should stay server-side only.
 
-### Database
-
-The Prisma schema lives in `prisma/schema.prisma` with `Income`, `Expense`, and `Profile` models. Point `DATABASE_URL` at your Supabase Postgres, then run:
-
-```
-npx prisma migrate dev
-npx prisma generate
-```
-
 ### Scripts
 
 ```
@@ -64,6 +55,13 @@ Set `CALENDLY_URL` to your scheduling link; the coaching tile will open it in a 
 ### Authentication
 
 Supabase email/password auth is provided. Update your Supabase Auth settings to allow email/password signups and configure redirect URLs to include `http://localhost:3000` during development.
+
+How it works in this codebase:
+- The home page (`src/app/page.tsx`) creates a server Supabase client and checks the session with `supabase.auth.getSession()`. If there is no session, it renders `AuthPanel`; if there is a session, it loads dashboard data.
+- The sign in/sign up UI (`src/components/auth/AuthPanel.tsx`) uses the browser client (`src/lib/supabase/client.ts`) and calls `supabase.auth.signInWithPassword` or `supabase.auth.signUp`.
+- The server client (`src/lib/supabase/server.ts`) is created with `@supabase/ssr` and wires cookies into the Next.js request/response so session cookies are read and written server-side.
+- API routes (`src/app/api/*/route.ts`) call `supabase.auth.getUser()` to verify the request is authenticated and return `401` when it is not.
+- A service-role admin client (`src/lib/supabase/admin.ts`) uses `SUPABASE_SERVICE_ROLE_KEY` for server-only operations (never exposed to the browser).
 
 ### Export
 
