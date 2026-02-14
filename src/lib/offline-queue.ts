@@ -31,7 +31,7 @@ export async function flushOfflineQueue() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...action.payload,
-          occurredAt: action.payload.occurredAt,
+          ...(action.payload.occurredAt ? { occurredAt: action.payload.occurredAt } : {}),
         }),
       });
       if (res.ok) {

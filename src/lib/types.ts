@@ -42,7 +42,7 @@ export type OfflineAction =
         amount: number;
         category: ExpenseCategory;
         note?: string | null;
-        occurredAt: string | Date;
+        occurredAt?: string | Date;
       };
     }
   | {
@@ -52,6 +52,6 @@ export type OfflineAction =
         amount: number;
         source: IncomeSource;
         note?: string | null;
-        occurredAt: string | Date;
+        occurredAt?: string | Date;
       };
     };
